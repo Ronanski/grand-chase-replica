@@ -1,0 +1,54 @@
+{
+  "name": "grand-chase-companion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Unofficial fan-made companion app for Grand Chase Classic",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "desktop": "npm run build && electron .",
+    "desktop:dev": "concurrently -k \"vite --port 5173 --strictPort\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
+    "desktop:dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.ronanski.gccompanion",
+    "productName": "GC Companion",
+    "directories": { "output": "release" },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
+    "wait-on": "^9.5.1"
+  }
+}
