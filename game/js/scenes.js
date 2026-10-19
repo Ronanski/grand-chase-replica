@@ -123,14 +123,14 @@ class Lobby {
     const cx = (200 + (W - 310)) / 2;
     panel(ctx, 200, 70, W - 520, H - 90, 0.55);
     ctx.save();
-    ctx.translate(cx, 300);
-    ctx.scale(2, 2);
+    ctx.translate(cx, 330);
+    ctx.scale(1.4, 1.4);
     drawHero(ctx, 0, 0, 1, hero, { state: 'idle', t: this.t }, false);
     ctx.restore();
     text(ctx, `${hero.name} — ${hero.role}`, cx, 104, { size: 24, align: 'center', color: hero.colors.trim, stroke: '#000', strokeW: 4 });
     wrap(ctx, hero.desc, cx, 128, W - 560, 15);
     const st = heroStats(sel, prog);
-    const by = 330;
+    const by = 370;
     text(ctx, `Lv. ${prog.lv}`, 220, by, { size: 18, color: '#ffd54a' });
     const need = expToNext(prog.lv);
     bar(ctx, 290, by - 14, W - 640, 14, prog.lv >= MAX_LV ? 1 : prog.exp / need, '#9be7ff');

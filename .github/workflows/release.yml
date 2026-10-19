@@ -1,0 +1,166 @@
+name: Build & Release
+
+# push to main      -> BETA build (APK + game patch) published to GitHub Pages
+# Actions > Run     -> choose "stable" to promote the current main to the STABLE channel
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        type: choice
+        options: [stable, beta]
+        default: stable
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Decide version & channels
+        id: v
+        run: |
+          BUILD=$((100 + GITHUB_RUN_NUMBER))
+          BASE=$(tr -d '[:space:]' < VERSION)
+          CHANNEL="${{ github.event.inputs.channel || 'beta' }}"
+          CHANNELS="$CHANNEL"
+          # First ever build: seed the stable channel too so both channels exist.
+          if [ "$CHANNEL" = beta ] && ! gh release view channel-stable >/dev/null 2>&1; then CHANNELS="beta stable"; fi
+          if [ "$CHANNEL" = stable ]; then NAME="$BASE.$BUILD"; else NAME="$BASE-beta.$BUILD"; fi
+          NOTES=$(git log -1 --pretty=%s | head -c 300)
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          REPO="${GITHUB_REPOSITORY#*/}"
+          {
+            echo "build=$BUILD"; echo "name=$NAME"; echo "channel=$CHANNEL"; echo "channels=$CHANNELS"
+            echo "base_url=https://$OWNER.github.io/$REPO/"
+            echo "notes<<EOF"; echo "$NOTES"; echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Build $BUILD ($NAME) -> $CHANNELS"
+
+      # The same signing key must be used forever, otherwise in-app updates fail.
+      # Priority: repo secrets -> private draft release "signing-key" -> generate once and store it there.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ks"
+          KS="$RUNNER_TEMP/ks/release.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            PASS="$KS_PASS"
+          else
+            PASS="gcreplica-${{ github.repository_id }}"
+            # draft releases have no git tag, so look it up through the API
+            ASSET=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              -q '[.[] | select(.draft and .tag_name == "signing-key") | .assets[] | select(.name == "release.jks") | .url][0] // empty')
+            if [ -n "$ASSET" ]; then
+              gh api -H "Accept: application/octet-stream" "$ASSET" > "$KS"
+              echo "Using stored signing key"
+            else
+              echo "Generating new signing key (stored in a private draft release)"
+              keytool -genkeypair -v -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias gcreplica \
+                -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=GC Replica, O=Ronanski, C=PH"
+              gh release create signing-key "$KS" --draft --title "signing-key (DO NOT PUBLISH OR DELETE)" \
+                --notes "Private APK signing key used by CI. Deleting it breaks in-app updates for installed apps."
+            fi
+          fi
+          {
+            echo "KEYSTORE_FILE=$KS"; echo "KEYSTORE_PASSWORD=$PASS"; echo "KEY_PASSWORD=$PASS"; echo "KEY_ALIAS=gcreplica"
+          } >> "$GITHUB_ENV"
+
+      - name: Stamp game version
+        run: |
+          echo "{\"game\": ${{ steps.v.outputs.build }}, \"channel\": \"${{ steps.v.outputs.channel }}\", \"name\": \"${{ steps.v.outputs.name }}\"}" > game/version.json
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APKs
+        working-directory: android
+        run: |
+          mkdir -p ../dist
+          for CH in ${{ steps.v.outputs.channels }}; do
+            ./gradlew --no-daemon assembleRelease \
+              -PversionCode=${{ steps.v.outputs.build }} \
+              -PversionName=${{ steps.v.outputs.name }} \
+              -PgameVersion=${{ steps.v.outputs.build }} \
+              -PupdateBaseUrl=${{ steps.v.outputs.base_url }} \
+              -Pchannel=$CH
+            mkdir -p ../dist/$CH
+            cp app/build/outputs/apk/release/app-release.apk ../dist/$CH/app-${{ steps.v.outputs.build }}.apk
+          done
+
+      - name: Package game patch & manifests
+        env:
+          NOTES: ${{ steps.v.outputs.notes }}
+        run: |
+          for CH in ${{ steps.v.outputs.channels }}; do
+            (cd game && zip -qr ../dist/$CH/game-${{ steps.v.outputs.build }}.zip . -x 'meta.json')
+            node scripts/make-manifest.mjs dist/$CH $CH ${{ steps.v.outputs.build }} ${{ steps.v.outputs.name }} "$NOTES"
+          done
+
+      # Rolling releases hold the latest files of each channel (Pages is rebuilt from them).
+      - name: Publish to channel releases
+        run: |
+          for CH in ${{ steps.v.outputs.channels }}; do
+            TAG=channel-$CH
+            FLAGS=""; [ "$CH" = beta ] && FLAGS="--prerelease"
+            if ! gh release view $TAG >/dev/null 2>&1; then
+              gh release create $TAG --target "$GITHUB_SHA" --title "$CH channel" --notes "Latest $CH build (auto-updated by CI)." $FLAGS
+            fi
+            for A in $(gh release view $TAG --json assets -q '.assets[].name'); do gh release delete-asset $TAG "$A" -y; done
+            gh release upload $TAG dist/$CH/* --clobber
+            gh release edit $TAG --notes "Latest $CH build: ${{ steps.v.outputs.name }} ($GITHUB_SHA)"
+          done
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp site/index.html _site/
+          for CH in stable beta; do
+            mkdir -p _site/$CH
+            gh release download channel-$CH -D _site/$CH 2>/dev/null || echo "no $CH release yet"
+            # web-playable copy of each channel's game
+            Z=$(ls _site/$CH/game-*.zip 2>/dev/null | head -1)
+            if [ -n "$Z" ]; then mkdir -p _site/play/$CH && unzip -q "$Z" -d _site/play/$CH; fi
+          done
+          touch _site/.nojekyll
+          find _site -maxdepth 2 | sort
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

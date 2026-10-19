@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- crossed sword + star -->
+    <path android:fillColor="#FFD54A" android:pathData="M54,22 L58,34 L71,34 L61,42 L65,55 L54,47 L43,55 L47,42 L37,34 L50,34 Z"/>
+    <path android:fillColor="#E8EEF5" android:pathData="M33,79 L71,41 L76,36 L78,38 L73,43 L35,81 Z"/>
+    <path android:fillColor="#B8322A" android:pathData="M30,76 L36,82 L33,85 L27,79 Z"/>
+    <path android:fillColor="#F2C94C" android:pathData="M36,70 L44,78 L41,81 L33,73 Z"/>
+</vector>

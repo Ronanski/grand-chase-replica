@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fil">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grand Chase Replica</title>
+<style>
+  :root { --bg:#0b0e1a; --card:#161b30; --text:#eef1ff; --muted:#9aa6d6; --gold:#ffd54a; --beta:#ff9f43; --stable:#4cd964; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 48px; }
+  h1 { font:700 40px Georgia,serif; color:var(--gold); margin:0; letter-spacing:1px; }
+  .sub { color:var(--muted); margin:4px 0 24px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .card { background:var(--card); border-radius:14px; padding:20px; border:1px solid #2a3358; }
+  .tag { display:inline-block; font-weight:700; font-size:12px; padding:2px 10px; border-radius:99px; color:#111; }
+  .ver { font-size:14px; color:var(--muted); margin:8px 0 14px; min-height:42px; }
+  a.btn { display:block; text-align:center; padding:12px; border-radius:10px; font-weight:700; color:#111; text-decoration:none; margin-top:8px; }
+  a.play { background:#3a6df0; color:#fff; }
+  .note { margin-top:28px; font-size:14px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>GRAND CHASE REPLICA</h1>
+  <p class="sub">Fan-made side-scrolling action RPG. Original art &amp; code.</p>
+  <div class="grid">
+    <div class="card" data-ch="stable">
+      <span class="tag" style="background:var(--stable)">STABLE</span>
+      <div class="ver">Loading…</div>
+      <a class="btn dl" style="background:var(--stable)" href="#">I-download ang APK</a>
+      <a class="btn play" href="play/stable/">Laruin sa browser</a>
+    </div>
+    <div class="card" data-ch="beta">
+      <span class="tag" style="background:var(--beta)">BETA</span>
+      <div class="ver">Loading…</div>
+      <a class="btn dl" style="background:var(--beta)" href="#">I-download ang APK</a>
+      <a class="btn play" href="play/beta/">Laruin sa browser</a>
+    </div>
+  </div>
+  <p class="note">Isang beses mo lang kailangang i-download ang APK. Pagkatapos noon, sa loob na ng app ang lahat ng updates at patches.
+    Pwede kang lumipat sa Stable o Beta sa Settings ng game.</p>
+</main>
+<script>
+  for (const card of document.querySelectorAll('[data-ch]')) {
+    const ch = card.dataset.ch;
+    fetch(ch + '/manifest.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((m) => {
+        card.querySelector('.ver').textContent =
+          `v${m.app.versionName} · ${(m.app.size / 1048576).toFixed(1)} MB · ${new Date(m.published).toLocaleDateString()}`;
+        card.querySelector('.dl').href = ch + '/' + m.app.url;
+      })
+      .catch(() => { card.querySelector('.ver').textContent = 'Wala pang release.'; card.querySelector('.dl').style.display = 'none'; });
+  }
+</script>
+</body>
+</html>
