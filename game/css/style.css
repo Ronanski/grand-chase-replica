@@ -1,0 +1,34 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+canvas {
+  display: block;
+  touch-action: none;
+}
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #0b0e1a;
+  color: #ffd54a;
+  font: bold 20px system-ui, sans-serif;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  z-index: 10;
+}
+#rotate div { font-size: 64px; }
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate { display: flex; }
+}
